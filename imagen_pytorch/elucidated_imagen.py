@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 from torch.nn.parallel import DistributedDataParallel
 import torchvision.transforms as T
 
@@ -565,6 +565,8 @@ class ElucidatedImagen(nn.Module):
         video_frames = None,
         batch_size = 1,
         cond_scale = 1.,
+        cfg_remove_parallel_component = True,
+        cfg_keep_parallel_frac = 0.,
         lowres_sample_noise_level = None,
         start_at_unet_number = 1,
         start_image_or_video = None,
@@ -583,7 +585,7 @@ class ElucidatedImagen(nn.Module):
         if exists(texts) and not exists(text_embeds) and not self.unconditional:
             assert all([*map(len, texts)]), 'text cannot be empty'
 
-            with autocast(enabled = False):
+            with autocast('cuda', enabled = False):
                 text_embeds, text_masks = self.encode_text(texts, return_attn_mask = True)
 
             text_embeds, text_masks = map(lambda t: t.to(device), (text_embeds, text_masks))
@@ -724,6 +726,8 @@ class ElucidatedImagen(nn.Module):
                     sigma_min = unet_sigma_min,
                     sigma_max = unet_sigma_max,
                     cond_scale = unet_cond_scale,
+                    remove_parallel_component = cfg_remove_parallel_component,
+                    keep_parallel_frac = cfg_keep_parallel_frac,
                     lowres_cond_img = lowres_cond_img,
                     lowres_noise_times = lowres_noise_times,
                     dynamic_threshold = dynamic_threshold,
@@ -811,7 +815,7 @@ class ElucidatedImagen(nn.Module):
             assert all([*map(len, texts)]), 'text cannot be empty'
             assert len(texts) == len(images), 'number of text captions does not match up with the number of images given'
 
-            with autocast(enabled = False):
+            with autocast('cuda', enabled = False):
                 text_embeds, text_masks = self.encode_text(texts, return_attn_mask = True)
 
             text_embeds, text_masks = map(lambda t: t.to(images.device), (text_embeds, text_masks))

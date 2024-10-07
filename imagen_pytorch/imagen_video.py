@@ -95,6 +95,15 @@ def pad_tuple_to_length(t, length, fillvalue = None):
         return t
     return (*t, *((fillvalue,) * remain_length))
 
+def pack_one_with_inverse(x, pattern):
+    packed, packed_shape = pack([x], pattern)
+
+    def inverse(x, inverse_pattern = None):
+        inverse_pattern = default(inverse_pattern, pattern)
+        return unpack(x, packed_shape, inverse_pattern)[0]
+
+    return packed, inverse
+
 # helper classes
 
 class Identity(nn.Module):
@@ -130,6 +139,19 @@ def masked_mean(t, *, dim, mask = None):
     masked_t = t.masked_fill(~mask, 0.)
 
     return masked_t.sum(dim = dim) / denom.clamp(min = 1e-5)
+
+def project(x, y):
+    x, inverse = pack_one_with_inverse(x, 'b *')
+    y, _ = pack_one_with_inverse(y, 'b *')
+
+    dtype = x.dtype
+    x, y = x.double(), y.double()
+    unit = F.normalize(y, dim = -1)
+
+    parallel = (x * unit).sum(dim = -1, keepdim = True) * unit
+    orthogonal = x - parallel
+
+    return inverse(parallel).to(dtype), inverse(orthogonal).to(dtype)
 
 def resize_video_to(
     video,
@@ -1637,6 +1659,8 @@ class Unet3D(nn.Module):
         self,
         *args,
         cond_scale = 1.,
+        remove_parallel_component = False,
+        keep_parallel_frac = 0.,
         **kwargs
     ):
         logits = self.forward(*args, **kwargs)
@@ -1645,7 +1669,14 @@ class Unet3D(nn.Module):
             return logits
 
         null_logits = self.forward(*args, cond_drop_prob = 1., **kwargs)
-        return null_logits + (logits - null_logits) * cond_scale
+
+        update = (logits - null_logits)
+
+        if remove_parallel_component:
+            parallel, orthogonal = project(update, logits)
+            update = orthogonal + parallel * keep_parallel_frac
+
+        return logits + update * (cond_scale - 1)
 
     def forward(
         self,

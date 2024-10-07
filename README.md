@@ -947,3 +947,12 @@ Anything! It is MIT licensed. In other words, you can freely copy / paste for yo
     note    = {under review}
 }
 ```
+
+```bibtex
+@inproceedings{Sadat2024EliminatingOA,
+    title   = {Eliminating Oversaturation and Artifacts of High Guidance Scales in Diffusion Models},
+    author  = {Seyedmorteza Sadat and Otmar Hilliges and Romann M. Weber},
+    year    = {2024},
+    url     = {https://api.semanticscholar.org/CorpusID:273098845}
+}
+```
